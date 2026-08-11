@@ -1,4 +1,4 @@
-# 🛰 Satellite-to-Insights
+# 🛰 Satellite-Insights
 
 > Turn live satellite data into plain-English, mission-ready situation briefs — powered by IBM Granite and NASA open data.
 
