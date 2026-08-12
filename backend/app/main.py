@@ -1,6 +1,21 @@
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+# Load .env from the repo root (satellite-insights/.env) or backend/.env —
+# whichever exists first, so it works regardless of where uvicorn is launched.
+_here = Path(__file__).resolve()
+for _candidate in [
+    _here.parents[2] / ".env",   # satellite-insights/.env  (repo root)
+    _here.parents[1] / ".env",   # satellite-insights/backend/.env
+]:
+    if _candidate.exists():
+        load_dotenv(_candidate, override=False)
+        print(f"[env] Loaded {_candidate}")
+        break
 
 from app.api.routes import router
 from app.store.db import init_db

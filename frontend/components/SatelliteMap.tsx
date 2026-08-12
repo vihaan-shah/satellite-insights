@@ -8,15 +8,28 @@ interface Props {
   imageryUrl?: string;
 }
 
-export default function SatelliteMap({ lat, lon, imageryUrl }: Props) {
+export default function SatelliteMap({ lat, lon }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<unknown>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapInstanceRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    if (!mapRef.current) return;
 
-    // Dynamically import Leaflet (SSR-safe)
+    // Guard: if Leaflet has already stamped this container, bail out
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((mapRef.current as any)._leaflet_id) return;
+
+    // Cancel flag — prevents the async callback from running after cleanup
+    let cancelled = false;
+
     import("leaflet").then((L) => {
+      if (cancelled || !mapRef.current) return;
+
+      // Guard again inside async callback (Strict Mode double-invoke)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((mapRef.current as any)._leaflet_id) return;
+
       // Fix default marker icon paths for Next.js
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -26,7 +39,7 @@ export default function SatelliteMap({ lat, lon, imageryUrl }: Props) {
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
-      const map = L.map(mapRef.current!).setView([lat, lon], 7);
+      const map = L.map(mapRef.current, { preferCanvas: true }).setView([lat, lon], 7);
       mapInstanceRef.current = map;
 
       // Base layer: OpenStreetMap
@@ -42,6 +55,7 @@ export default function SatelliteMap({ lat, lon, imageryUrl }: Props) {
           attribution: "NASA GIBS",
           opacity: 0.7,
           maxZoom: 9,
+          errorTileUrl: "",
         }
       ).addTo(map);
 
@@ -53,13 +67,14 @@ export default function SatelliteMap({ lat, lon, imageryUrl }: Props) {
     });
 
     return () => {
+      cancelled = true;
       if (mapInstanceRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (mapInstanceRef.current as any).remove();
+        mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, [lat, lon]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount — lat/lon are set at mount time
 
   return (
     <>

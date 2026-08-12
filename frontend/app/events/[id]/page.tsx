@@ -117,9 +117,24 @@ export default function EventDetailPage() {
 
           {insight && !generating && (
             <>
-              <p className="text-gray-200 text-sm leading-relaxed">{insight.brief}</p>
+              {insight.brief.startsWith("IBM Granite API key not configured") ||
+               insight.brief.startsWith("[Granite offline") ? (
+                <div className="flex items-start gap-2 text-sm text-amber-500/80 bg-amber-950/40 border border-amber-900/40 rounded-lg px-4 py-3">
+                  <span className="mt-0.5">⚠</span>
+                  <div>
+                    <p className="font-medium">AI brief unavailable</p>
+                    <p className="text-amber-600/70 text-xs mt-0.5">
+                      Add <code className="font-mono">WATSONX_API_KEY</code> and{" "}
+                      <code className="font-mono">WATSONX_PROJECT_ID</code> to your{" "}
+                      <code className="font-mono">.env</code> file, then restart the backend.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-200 text-sm leading-relaxed">{insight.brief}</p>
+              )}
 
-              {/* Stats grid */}
+              {/* Stats grid — always shown regardless of brief state */}
               <div className="grid grid-cols-2 gap-3 pt-2">
                 {[
                   { label: "Hotspots", value: insight.analysis?.hotspot_count ?? 0 },

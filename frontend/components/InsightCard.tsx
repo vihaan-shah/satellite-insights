@@ -27,8 +27,14 @@ const RISK_BADGE: Record<string, string> = {
   critical: "bg-red-900 text-red-300",
 };
 
+// Brief text is a config notice when no API key is set
+const isOffline = (brief: string) =>
+  brief.startsWith("IBM Granite API key not configured") ||
+  brief.startsWith("[Granite offline");
+
 export default function InsightCard({ insight }: { insight: Insight }) {
   const risk = insight.analysis?.risk_level ?? "low";
+  const offline = isOffline(insight.brief ?? "");
 
   return (
     <Link
@@ -58,10 +64,17 @@ export default function InsightCard({ insight }: { insight: Insight }) {
           </span>
         </div>
 
-        {/* Brief excerpt */}
-        <p className="text-xs text-gray-400 leading-relaxed line-clamp-3">
-          {insight.brief}
-        </p>
+        {/* Brief excerpt — or offline notice */}
+        {offline ? (
+          <div className="flex items-center gap-1.5 text-xs text-amber-500/80 bg-amber-950/40 border border-amber-900/40 rounded-lg px-3 py-2">
+            <span>⚠</span>
+            <span>AI brief requires <code className="font-mono">WATSONX_API_KEY</code></span>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 leading-relaxed line-clamp-3">
+            {insight.brief}
+          </p>
+        )}
 
         {/* Stats */}
         <div className="flex gap-4 pt-1">

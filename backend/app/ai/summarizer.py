@@ -7,7 +7,7 @@ from typing import Any
 from app.ai.granite_client import generate_text
 
 
-BRIEF_TEMPLATE = """You are a satellite intelligence analyst. Based on the data below, write a concise 3–5 sentence situation brief for field operations personnel. Be factual, specific, and clear. Include: what is happening, where, scale/severity, key risk factors, and recommended awareness.
+BRIEF_TEMPLATE = """You are a satellite intelligence analyst. Write ONLY a 3–5 sentence situation brief for field operations personnel. Do not add commentary, headers, or restatements — just the brief itself. Include: what is happening, where, scale/severity, key risk factors, and recommended awareness.
 
 Event: {title}
 Category: {categories}

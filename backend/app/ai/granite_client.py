@@ -1,85 +1,68 @@
 """
-IBM Granite client — wraps the IBM watsonx.ai Inference API.
+IBM watsonx.ai client — uses the ibm-watsonx-ai SDK (no raw HTTP).
 Set WATSONX_API_KEY and WATSONX_PROJECT_ID in your .env file.
 
-Docs: https://cloud.ibm.com/apidocs/watsonx-ai
+Docs: https://ibm.github.io/watson-machine-learning-sdk/
 """
 import os
-import httpx
+import warnings
 from typing import Optional
 
-WATSONX_API_KEY = os.getenv("WATSONX_API_KEY", "")
-WATSONX_PROJECT_ID = os.getenv("WATSONX_PROJECT_ID", "")
-WATSONX_URL = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
-GRANITE_MODEL = os.getenv("GRANITE_MODEL", "ibm/granite-13b-instruct-v2")
-
-IAM_TOKEN_URL = "https://iam.cloud.ibm.com/identity/token"
-
-_cached_token: Optional[str] = None
+# Suppress the deprecation + disclaimer warnings from the SDK in normal use
+warnings.filterwarnings("ignore", category=Warning, module="ibm_watsonx_ai")
 
 
-def _get_iam_token() -> str:
-    """Exchange IBM API key for a short-lived IAM bearer token."""
-    global _cached_token
-    if _cached_token:
-        return _cached_token
-
-    resp = httpx.post(
-        IAM_TOKEN_URL,
-        data={
-            "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
-            "apikey": WATSONX_API_KEY,
-        },
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        timeout=15,
+def _creds():
+    from ibm_watsonx_ai import Credentials
+    return Credentials(
+        url=os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com"),
+        api_key=os.getenv("WATSONX_API_KEY", ""),
     )
-    resp.raise_for_status()
-    _cached_token = resp.json()["access_token"]
-    return _cached_token
+
+
+def _model_id() -> str:
+    # Default to llama-3-3-70b-instruct — confirmed available in us-south.
+    # Override via GRANITE_MODEL in .env if your region has different models.
+    return os.getenv("GRANITE_MODEL", "meta-llama/llama-3-3-70b-instruct")
 
 
 def generate_text(
     prompt: str,
     max_new_tokens: int = 512,
-    temperature: float = 0.3,
+    temperature: float = 0.4,
     stop_sequences: Optional[list[str]] = None,
 ) -> str:
     """
-    Call the watsonx.ai text generation endpoint with IBM Granite.
+    Generate text via the watsonx.ai SDK.
 
-    Falls back to a placeholder string when no API key is configured
-    (useful for local development without credentials).
+    Falls back to a helpful message when no API key is configured.
     """
-    if not WATSONX_API_KEY:
+    api_key = os.getenv("WATSONX_API_KEY", "")
+    project_id = os.getenv("WATSONX_PROJECT_ID", "")
+
+    if not api_key:
         return (
-            "[Granite offline — set WATSONX_API_KEY] "
-            "This would be a live AI-generated situation brief."
+            "IBM Granite API key not configured. Add WATSONX_API_KEY to your "
+            ".env file and restart the backend to enable AI-generated briefs."
         )
 
-    token = _get_iam_token()
-    url = f"{WATSONX_URL}/ml/v1/text/generation?version=2023-05-29"
+    try:
+        from ibm_watsonx_ai.foundation_models import ModelInference
+        from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as Params
 
-    payload = {
-        "model_id": GRANITE_MODEL,
-        "project_id": WATSONX_PROJECT_ID,
-        "input": prompt,
-        "parameters": {
-            "decoding_method": "sample",
-            "max_new_tokens": max_new_tokens,
-            "temperature": temperature,
-            "stop_sequences": stop_sequences or ["\n\n"],
-        },
-    }
+        model = ModelInference(
+            model_id=_model_id(),
+            credentials=_creds(),
+            project_id=project_id,
+            params={
+                Params.MAX_NEW_TOKENS: max_new_tokens,
+                Params.TEMPERATURE: temperature,
+                Params.STOP_SEQUENCES: stop_sequences or [],
+            },
+        )
 
-    resp = httpx.post(
-        url,
-        json=payload,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        timeout=30,
-    )
-    resp.raise_for_status()
+        result = model.generate_text(prompt)
+        return result.strip() if result else "No response generated."
 
-    results = resp.json().get("results", [])
-    if results:
-        return results[0].get("generated_text", "").strip()
-    return "No response generated."
+    except Exception as exc:
+        return f"[watsonx.ai error] {exc}"
